@@ -1,0 +1,11 @@
+name: flawferret-ai-server
+
+services:
+  flawferret-ai-server:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      PORT: ${PORT:-8787}
