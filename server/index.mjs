@@ -5,12 +5,13 @@ import OpenAI from "openai";
 const app = express();
 const port = process.env.PORT || 8787;
 const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const openaiApiKey = process.env.OPENAI_API_KEY;
 
-if (!process.env.OPENAI_API_KEY) {
+if (!openaiApiKey) {
   console.warn("OPENAI_API_KEY is not set. Requests will fail.");
 }
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "1mb" }));
@@ -97,6 +98,15 @@ app.post("/generate-scenario", async (req, res) => {
       const data = await ollamaResp.json();
       text = (data.response || "").trim();
     } else {
+      if (!client) {
+        res.status(503).json({
+          ok: false,
+          error:
+            "OpenAI is not configured. Set OPENAI_API_KEY or use provider=ollama.",
+        });
+        return;
+      }
+
       const response = await client.responses.create({
         model: requestModel || model,
         input: [
