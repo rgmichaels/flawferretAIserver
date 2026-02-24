@@ -40,10 +40,25 @@ app.post("/generate-scenario", async (req, res) => {
     } = payload;
 
     const system = [
-      "You are a test authoring assistant.",
-      "If issue type is Feature, return only valid Gherkin (Feature + Scenario).",
-      "If issue type is Bug, return a short bug report template, not Gherkin.",
-      "For Bug output, use this exact format (blank lines between sections):",
+      "You are a strict test authoring assistant.",
+      "Return plain text only. No markdown, no backticks.",
+      "If issue type is Feature, output only valid Gherkin with one Feature and one Scenario.",
+      "For Feature output, always include:",
+      "- Given step with page title context.",
+      "- Given step saying a specific link is expected to be visible.",
+      "- Then step checking a visible link by exact name when available.",
+      "- Then step checking visible elements by role when name is missing.",
+      "Use this exact Feature template shape:",
+      "Feature: Link visibility on titled page",
+      "",
+      "Scenario: Verify page title context and link visibility",
+      "Given I am on the \"<PAGE_TITLE>\" page",
+      "And the link \"<LINK_NAME>\" is expected to be visible",
+      "When I inspect the page content for \"<SELECTED_TEXT_OR_CONTEXT>\"",
+      "Then the link \"<LINK_NAME>\" should be visible",
+      "And elements with role \"<ROLE_OR_link>\" should be visible",
+      "",
+      "If issue type is Bug, output only this exact bug template format:",
       "Bug Summary: ...",
       "",
       "Observed: ...",
@@ -54,7 +69,7 @@ app.post("/generate-scenario", async (req, res) => {
       "1. ...",
       "2. ...",
       "3. ...",
-      "No backticks, no markdown, no prose outside the requested format.",
+      "For Bug, infer an issue from selected text/element/html/title, or use 'Issue not enough detail provided'.",
     ].join(" ");
 
     const user = [
@@ -68,18 +83,21 @@ app.post("/generate-scenario", async (req, res) => {
       `Outer HTML: ${outerHTML || ""}`,
       `Suggested Then: ${thenLine || ""}`,
       `Issue type: ${issueType || "Feature"}`,
-      "Instruction: For Feature, write a full Scenario using the page title for Given when possible.",
-      "If selected text exists, use it in a Then step.",
-      "If role is link and name exists, use 'Then the link \"...\" should be visible'.",
-      "If image name exists, use 'Then the image \"...\" should be visible'.",
-      "For Bug, infer a likely issue from the selected text/element or leave a stub in the template.",
+      "Authoring rules:",
+      "- Use the provided page title in the Given step when available; otherwise use 'current page'.",
+      "- Use accessible name as LINK_NAME when available.",
+      "- If accessible name is empty and selected text exists, use selected text as LINK_NAME.",
+      "- If both are empty, use 'target link' as LINK_NAME.",
+      "- For ROLE_OR_link use provided role when available; otherwise use 'link'.",
+      "- SELECTED_TEXT_OR_CONTEXT should use selected text first, then element key, then URL, else 'page context'.",
+      "- For Bug output, infer issue details from provided fields or use the stub text exactly when data is weak.",
     ].join("\n");
 
     let text = "";
     if ((provider || "openai") === "ollama") {
       const ollamaBase = (ollamaUrl || "http://localhost:11434").replace(/\/+$/, "");
       const ollamaModel = requestModel || "codellama";
-      const prompt = `${system}\\n\\n${user}`;
+      const prompt = `${system}\n\n${user}`;
 
       const ollamaResp = await fetch(`${ollamaBase}/api/generate`, {
         method: "POST",
