@@ -6,6 +6,7 @@ const app = express();
 const port = process.env.PORT || 8787;
 const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const serverBaseUrl = process.env.SERVER_BASE_URL || `http://localhost:${port}`;
 
 if (!openaiApiKey) {
   console.warn("OPENAI_API_KEY is not set. Requests will fail.");
@@ -16,8 +17,163 @@ const client = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "1mb" }));
 
+const openApiSpec = {
+  openapi: "3.0.3",
+  info: {
+    title: "FlawFerret AI Server API",
+    version: "1.0.0",
+    description:
+      "API for health checks and AI-driven scenario generation using OpenAI or Ollama.",
+  },
+  servers: [{ url: serverBaseUrl }],
+  paths: {
+    "/health": {
+      get: {
+        summary: "Health check",
+        operationId: "getHealth",
+        responses: {
+          200: {
+            description: "Server is healthy",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                  },
+                  required: ["ok"],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/generate-scenario": {
+      post: {
+        summary: "Generate feature scenario or bug report text",
+        operationId: "generateScenario",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GenerateScenarioRequest",
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Scenario generated",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    scenario: { type: "string" },
+                  },
+                  required: ["ok", "scenario"],
+                },
+              },
+            },
+          },
+          500: {
+            description: "Generation failed",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          503: {
+            description: "OpenAI not configured",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      GenerateScenarioRequest: {
+        type: "object",
+        properties: {
+          url: { type: "string", example: "https://example.com" },
+          title: { type: "string", example: "Pricing" },
+          elementKey: { type: "string", example: "link-start-trial" },
+          role: { type: "string", example: "link" },
+          name: { type: "string", example: "Start free trial" },
+          selectedText: { type: "string", example: "Start free trial" },
+          imageName: { type: "string", example: "" },
+          outerHTML: { type: "string", example: "<a>Start free trial</a>" },
+          thenLine: {
+            type: "string",
+            example: 'Then the link "Start free trial" should be visible',
+          },
+          issueType: {
+            type: "string",
+            enum: ["Feature", "Bug"],
+            default: "Feature",
+          },
+          provider: {
+            type: "string",
+            enum: ["openai", "ollama"],
+            default: "openai",
+          },
+          model: { type: "string", example: "tinyllama:latest" },
+          ollamaUrl: {
+            type: "string",
+            example: "http://host.docker.internal:11434",
+          },
+        },
+      },
+      ErrorResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: false },
+          error: { type: "string", example: "fetch failed" },
+        },
+        required: ["ok", "error"],
+      },
+    },
+  },
+};
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/openapi.json", (_req, res) => {
+  res.json(openApiSpec);
+});
+
+app.get("/docs", (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FlawFerret AI API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: "/openapi.json",
+        dom_id: "#swagger-ui",
+        deepLinking: true
+      });
+    </script>
+  </body>
+</html>`);
 });
 
 app.post("/generate-scenario", async (req, res) => {
@@ -52,11 +208,11 @@ app.post("/generate-scenario", async (req, res) => {
       "Feature: Link visibility on titled page",
       "",
       "Scenario: Verify page title context and link visibility",
-      "Given I am on the \"<PAGE_TITLE>\" page",
-      "And the link \"<LINK_NAME>\" is expected to be visible",
-      "When I inspect the page content for \"<SELECTED_TEXT_OR_CONTEXT>\"",
-      "Then the link \"<LINK_NAME>\" should be visible",
-      "And elements with role \"<ROLE_OR_link>\" should be visible",
+      'Given I am on the "<PAGE_TITLE>" page',
+      'And the link "<LINK_NAME>" is expected to be visible',
+      'When I inspect the page content for "<SELECTED_TEXT_OR_CONTEXT>"',
+      'Then the link "<LINK_NAME>" should be visible',
+      'And elements with role "<ROLE_OR_link>" should be visible',
       "",
       "If issue type is Bug, output only this exact bug template format:",
       "Bug Summary: ...",

@@ -6,6 +6,8 @@ Backend service for FlawFerret AI scenario generation.
 - exposes `GET /health`
 - exposes `POST /generate-scenario`
 - routes generation requests to OpenAI or local Ollama
+- exposes Swagger-style docs at `GET /docs`
+- exposes OpenAPI spec JSON at `GET /openapi.json`
 
 ## Requirements
 - Node.js 20+
@@ -17,9 +19,16 @@ Backend service for FlawFerret AI scenario generation.
    - `OPENAI_API_KEY=...`
    - optional `OPENAI_MODEL=gpt-4o-mini`
    - optional `PORT=8787`
+   - optional `SERVER_BASE_URL=http://localhost:8787` (used in OpenAPI `servers` section)
 3. Start server: `npm run start`
 
 Server default URL: `http://localhost:8787`
+
+## API docs
+- Interactive docs UI: `http://localhost:8787/docs`
+- OpenAPI spec: `http://localhost:8787/openapi.json`
+
+For production, set `SERVER_BASE_URL` to your public HTTPS API origin (example: `https://ai.flawferret.com`) so the OpenAPI `servers` URL is correct when viewed from your website.
 
 ## Docker
 - Build and run: `docker compose up --build`
